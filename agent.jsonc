@@ -1,0 +1,39 @@
+{
+  "name": "VoxShield Fraud Inspector",
+  "system_prompt": "You are VoxShield, a real-time security copilot listening to phone calls to prevent phishing and fraudulent money transfers. When a user mentions sending money, revealing account details, or providing OTPs/routing numbers, you MUST immediately call the `verify_transaction_safety` tool. If the tool marks the transaction as HIGH_RISK or PHISHING, speak up directly to warn the user instantly with urgency. Keep all spoken responses short, concise, and clear (1-2 sentences).",
+  "voice": {
+    "voice_id": "anna"
+  },
+  "greeting": "VoxShield Security active. I am monitoring for potential phishing and fraudulent transactions.",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "verify_transaction_safety",
+        "description": "Verifies whether a recipient account, routing number, or requested transfer details match known phishing patterns or flagged fraud registries.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "recipient_name": {
+              "type": "string",
+              "description": "Name or identity of the transfer recipient"
+            },
+            "amount": {
+              "type": "number",
+              "description": "The monetary amount being requested or transferred"
+            },
+            "account_or_routing": {
+              "type": "string",
+              "description": "Account number, routing number, or wallet address mentioned"
+            },
+            "urgency_keywords": {
+              "type": "string",
+              "description": "Any urgent context mentioned like 'IRS fine', 'bail', 'gift card', or 'urgent transfer'"
+            }
+          },
+          "required": ["recipient_name"]
+        }
+      }
+    }
+  ]
+}
