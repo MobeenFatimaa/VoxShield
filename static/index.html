@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoxShield AI | Real-Time Voice Supervision & Phishing Inspector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              red: '#ef4444',
+              darkRed: '#7f1d1d',
+              green: '#10b981',
+              amber: '#f59e0b',
+              bg: '#08080a',
+              card: '#111217',
+              cardLight: '#181a20',
+              border: '#23262f',
+              borderLight: '#323644'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #08080a;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .grid-pattern {
+      background-image: radial-gradient(rgba(239, 68, 68, 0.12) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    .pulse-danger {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      animation: pulse-danger-anim 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+    @keyframes pulse-danger-anim {
+      to { box-shadow: 0 0 0 22px rgba(239, 68, 68, 0); }
+    }
+
+    .pulse-green {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+      animation: pulse-green-anim 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+    @keyframes pulse-green-anim {
+      to { box-shadow: 0 0 0 18px rgba(16, 185, 129, 0); }
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0d0e12;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #272a36;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #ef4444;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between grid-pattern custom-scrollbar">
+
+  <!-- Navigation Header -->
+  <nav class="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-md border-b border-brand-border px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+      
+      <!-- Brand Logo & Badge -->
+      <div class="flex items-center space-x-3">
+        <div id="statusDot" class="w-3.5 h-3.5 rounded-full bg-brand-green pulse-green"></div>
+        <div class="flex flex-col">
+          <span class="text-xl font-black tracking-wider text-white flex items-center gap-1.5">
+            VOXSHIELD <span class="text-brand-red">AI</span>
+          </span>
+          <span class="text-[10px] font-mono text-gray-400">REAL-TIME VOICE SUPERVISOR</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex items-center bg-brand-card border border-brand-border rounded-xl p-1 text-xs font-medium">
+        <button id="tab-inspector" onclick="switchTab('inspector')" class="px-4 py-1.5 rounded-lg text-white bg-brand-red font-semibold transition-all shadow-sm">
+          Live Inspector
+        </button>
+        <button id="tab-rules" onclick="switchTab('rules')" class="px-4 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all">
+          Scam Database & Rules
+        </button>
+        <button id="tab-logs" onclick="switchTab('logs')" class="px-4 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all">
+          Tool Telemetry
+        </button>
+      </div>
+
+      <!-- Live Controls & Audio Toggle -->
+      <div class="flex items-center space-x-3">
+        <button id="audioToggleBtn" onclick="toggleAudioOutput()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-card border border-brand-border hover:border-gray-600 rounded-lg text-xs font-mono text-gray-300 transition-all">
+          <svg id="audioIconOn" class="w-4 h-4 text-brand-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+          <span id="audioToggleText">Audio Output: ON</span>
+        </button>
+        <span class="hidden lg:inline-flex text-xs font-mono bg-red-950/80 text-red-400 border border-red-800/60 px-2.5 py-1.5 rounded-lg">
+          AssemblyAI Universal-3 Pro
+        </span>
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- Top Dynamic Alert Banner -->
+  <div id="securityAlertBanner" class="hidden max-w-7xl mx-auto mt-4 px-4 w-full">
+    <div class="bg-red-950/90 border-2 border-brand-red rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xl shadow-red-950/50">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-brand-red rounded-lg text-white animate-bounce">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div>
+          <h4 class="text-base font-bold text-red-200 uppercase tracking-wide">PHISHING THREAT INTERCEPTED</h4>
+          <p id="alertBannerText" class="text-xs text-red-300 mt-0.5">High-risk fraud pattern detected. Spoken warning issued to user.</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button onclick="overrideAlert()" class="px-3.5 py-1.5 bg-gray-900 border border-red-800 text-xs font-semibold text-gray-300 hover:text-white rounded-lg">
+          Override Warning
+        </button>
+        <button onclick="blockTransaction()" class="px-4 py-1.5 bg-brand-red hover:bg-red-600 text-xs font-bold text-white rounded-lg shadow-md transition-all">
+          Block Transaction
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main View Area -->
+  <main class="max-w-7xl mx-auto px-4 lg:px-8 py-6 w-full flex-1">
+
+    <!-- VIEW 1: LIVE INSPECTOR -->
+    <div id="view-inspector" class="space-y-6">
+      
+      <!-- Top Row Grid: Mic Visualizer & Threat Score Gauge -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Live Audio Input & Waveform Panel (7 cols) -->
+        <div class="lg:col-span-7 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-xs font-mono text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-brand-red"></span>
+              Live Audio Stream & Speech Visualizer
+            </span>
+            <span id="callTimer" class="text-xs font-mono bg-black/60 px-2.5 py-1 rounded border border-brand-border text-gray-400">
+              00:00:00
+            </span>
+          </div>
+
+          <!-- Audio Waveform Canvas -->
+          <div class="relative w-full h-28 bg-black/80 rounded-xl border border-brand-border flex items-center justify-center overflow-hidden my-2">
+            <canvas id="waveformCanvas" class="w-full h-full"></canvas>
+            <div id="waveformOverlayText" class="absolute text-xs font-mono text-gray-500 pointer-events-none">
+              Click Start Supervision or Pick a Preset Scenario below
+            </div>
+          </div>
+
+          <!-- Mic Controls & Audio Presets -->
+          <div class="space-y-4 mt-4">
+            <div class="flex flex-col sm:flex-row items-center gap-3">
+              <button id="mainMicBtn" onclick="toggleSupervisionCall()" class="w-full sm:w-auto flex-1 py-3 bg-brand-red hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-950/40 flex items-center justify-center gap-2">
+                <svg id="micBtnIcon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <span id="micBtnText">Start Supervision Call</span>
+              </button>
+              
+              <button onclick="clearSessionLogs()" class="w-full sm:w-auto px-4 py-3 bg-brand-cardLight border border-brand-border hover:border-gray-600 text-xs font-medium text-gray-300 rounded-xl transition-all">
+                Reset Session
+              </button>
+            </div>
+
+            <!-- Quick Audio Scenario Presets -->
+            <div class="pt-2">
+              <span class="text-[11px] font-mono text-gray-400 uppercase tracking-wider block mb-2">Simulate Attack Scenarios:</span>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button onclick="loadScenario('irs')" class="px-2.5 py-2 bg-black/60 hover:bg-red-950/40 border border-brand-border hover:border-red-700/60 rounded-lg text-[11px] font-medium text-gray-300 hover:text-white transition-all text-left">
+                  <span class="text-brand-red font-bold block">1. IRS Tax Scam</span>
+                  <span class="text-[10px] text-gray-400">$6,000 Urgent Fine</span>
+                </button>
+                <button onclick="loadScenario('grandparent')" class="px-2.5 py-2 bg-black/60 hover:bg-red-950/40 border border-brand-border hover:border-red-700/60 rounded-lg text-[11px] font-medium text-gray-300 hover:text-white transition-all text-left">
+                  <span class="text-brand-red font-bold block">2. Grandparent Scam</span>
+                  <span class="text-[10px] text-gray-400">Emergency Bail</span>
+                </button>
+                <button onclick="loadScenario('crypto')" class="px-2.5 py-2 bg-black/60 hover:bg-red-950/40 border border-brand-border hover:border-red-700/60 rounded-lg text-[11px] font-medium text-gray-300 hover:text-white transition-all text-left">
+                  <span class="text-brand-red font-bold block">3. Crypto Phishing</span>
+                  <span class="text-[10px] text-gray-400">Wallet Wire</span>
+                </button>
+                <button onclick="loadScenario('rent')" class="px-2.5 py-2 bg-black/60 hover:bg-emerald-950/40 border border-brand-border hover:border-emerald-700/60 rounded-lg text-[11px] font-medium text-gray-300 hover:text-white transition-all text-left">
+                  <span class="text-brand-green font-bold block">4. Safe Rent Transfer</span>
+                  <span class="text-[10px] text-gray-400">$1,200 Standard</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Threat Score Meter Panel (5 cols) -->
+        <div class="lg:col-span-5 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-mono text-gray-400 uppercase tracking-wider">Threat Score Index</span>
+            <span id="threatLevelBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-950 text-brand-green border border-emerald-800">
+              SAFE
+            </span>
+          </div>
+
+          <!-- Gauge Score Display -->
+          <div class="my-6 flex flex-col items-center justify-center text-center">
+            <div class="relative flex items-center justify-center">
+              <!-- Score Ring -->
+              <svg class="w-36 h-36 transform -rotate-90">
+                <circle cx="72" cy="72" r="58" stroke="currentColor" stroke-width="10" class="text-gray-800" fill="transparent" />
+                <circle id="scoreRingCircle" cx="72" cy="72" r="58" stroke="currentColor" stroke-width="10" class="text-brand-green transition-all duration-700" stroke-dasharray="364" stroke-dashoffset="345" fill="transparent" />
+              </svg>
+              <div class="absolute flex flex-col items-center">
+                <span id="scoreValue" class="text-3xl font-black text-white">5%</span>
+                <span class="text-[10px] font-mono text-gray-400 uppercase">Risk Level</span>
+              </div>
+            </div>
+            <p id="scoreReasonText" class="text-xs text-gray-400 mt-4 px-2 max-w-xs">
+              Audio stream monitoring active. No security anomalies detected.
+            </p>
+          </div>
+
+          <!-- Risk Details Quick Stats -->
+          <div class="grid grid-cols-3 gap-2 border-t border-brand-border pt-3 text-center">
+            <div class="bg-black/50 p-2 rounded-lg border border-brand-border">
+              <span class="text-[10px] font-mono text-gray-400 block">Recipient</span>
+              <span id="statRecipient" class="text-xs font-bold text-gray-200 truncate block">--</span>
+            </div>
+            <div class="bg-black/50 p-2 rounded-lg border border-brand-border">
+              <span class="text-[10px] font-mono text-gray-400 block">Amount</span>
+              <span id="statAmount" class="text-xs font-bold text-gray-200 block">$0</span>
+            </div>
+            <div class="bg-black/50 p-2 rounded-lg border border-brand-border">
+              <span class="text-[10px] font-mono text-gray-400 block">Tool Action</span>
+              <span id="statToolAction" class="text-xs font-bold text-gray-200 block">Idle</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Row Grid: Live Speech Transcription & Parsed Entity Telemetry -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Live Speech Stream Output (7 cols) -->
+        <div class="lg:col-span-7 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col shadow-xl">
+          <div class="flex justify-between items-center border-b border-brand-border pb-3 mb-4">
+            <span class="text-xs font-mono text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <svg class="w-4 h-4 text-brand-red" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              Live Speech Transcription (Universal-3 Pro)
+            </span>
+            <span id="typingIndicator" class="hidden text-[10px] font-mono text-brand-red animate-pulse">
+              TRANSCRIPTION STREAMING...
+            </span>
+          </div>
+
+          <div id="transcriptBox" class="bg-black/80 border border-brand-border rounded-xl p-4 font-mono text-sm min-h-[160px] max-h-[220px] overflow-y-auto space-y-2 text-gray-300 leading-relaxed custom-scrollbar">
+            <span class="text-gray-600 italic">Transcribed speech audio will stream here live as spoken...</span>
+          </div>
+        </div>
+
+        <!-- Extracted Entities Panel (5 cols) -->
+        <div class="lg:col-span-5 bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col shadow-xl">
+          <div class="flex justify-between items-center border-b border-brand-border pb-3 mb-4">
+            <span class="text-xs font-mono text-gray-400 uppercase tracking-wider flex items-center gap-2">
+              <svg class="w-4 h-4 text-brand-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Parsed Entity Parameters
+            </span>
+            <span class="text-[10px] font-mono text-gray-500">JSON SCHEMA</span>
+          </div>
+
+          <div class="space-y-3 font-mono text-xs">
+            <div class="flex justify-between items-center p-2.5 bg-black/60 border border-brand-border rounded-lg">
+              <span class="text-gray-400">Recipient Name:</span>
+              <span id="entityRecipient" class="font-bold text-white">None Detected</span>
+            </div>
+            <div class="flex justify-between items-center p-2.5 bg-black/60 border border-brand-border rounded-lg">
+              <span class="text-gray-400">Requested Amount:</span>
+              <span id="entityAmount" class="font-bold text-white">$0.00</span>
+            </div>
+            <div class="flex justify-between items-center p-2.5 bg-black/60 border border-brand-border rounded-lg">
+              <span class="text-gray-400">Routing / Account:</span>
+              <span id="entityAccount" class="font-bold text-white">Unspecified</span>
+            </div>
+            <div class="flex justify-between items-center p-2.5 bg-black/60 border border-brand-border rounded-lg">
+              <span class="text-gray-400">Urgency Trigger Signals:</span>
+              <span id="entityUrgency" class="font-bold text-white">None</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: SCAM DATABASE & RULES EDITOR -->
+    <div id="view-rules" class="hidden space-y-6">
+      <div class="bg-brand-card border border-brand-border rounded-2xl p-6 shadow-xl">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-brand-border pb-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-white">Dynamic Scam & Phishing Verification Rules</h3>
+            <p class="text-xs text-gray-400 mt-0.5">Add or remove flagged entities in real-time to test VoxShield tool-calling validation.</p>
+          </div>
+          <button onclick="resetDefaultRules()" class="px-3 py-1.5 bg-brand-cardLight border border-brand-border text-xs text-gray-300 hover:text-white rounded-lg">
+            Reset Default Rules
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- Column 1: Flagged Account Numbers -->
+          <div class="bg-black/60 border border-brand-border rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <h4 class="text-xs font-mono font-bold text-brand-red uppercase mb-3 flex items-center justify-between">
+                <span>Flagged Accounts</span>
+                <span id="count-accounts" class="text-gray-500 text-[10px]">3 entries</span>
+              </h4>
+              <div id="ruleList-accounts" class="space-y-2 mb-4 max-h-48 overflow-y-auto custom-scrollbar">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <input id="input-account" type="text" placeholder="Add account/routing #" class="w-full bg-brand-card border border-brand-border px-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-brand-red">
+              <button onclick="addRule('accounts')" class="px-3 py-1.5 bg-brand-red text-xs font-bold text-white rounded-lg hover:bg-red-600">Add</button>
+            </div>
+          </div>
+
+          <!-- Column 2: Flagged Entities & Recipients -->
+          <div class="bg-black/60 border border-brand-border rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <h4 class="text-xs font-mono font-bold text-brand-amber uppercase mb-3 flex items-center justify-between">
+                <span>Flagged Recipients</span>
+                <span id="count-names" class="text-gray-500 text-[10px]">3 entries</span>
+              </h4>
+              <div id="ruleList-names" class="space-y-2 mb-4 max-h-48 overflow-y-auto custom-scrollbar">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <input id="input-name" type="text" placeholder="Add entity/scammer name" class="w-full bg-brand-card border border-brand-border px-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-brand-amber">
+              <button onclick="addRule('names')" class="px-3 py-1.5 bg-brand-amber text-xs font-bold text-white rounded-lg hover:bg-amber-600">Add</button>
+            </div>
+          </div>
+
+          <!-- Column 3: High-Risk Pressure Keywords -->
+          <div class="bg-black/60 border border-brand-border rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <h4 class="text-xs font-mono font-bold text-brand-green uppercase mb-3 flex items-center justify-between">
+                <span>Pressure Signals</span>
+                <span id="count-keywords" class="text-gray-500 text-[10px]">5 entries</span>
+              </h4>
+              <div id="ruleList-keywords" class="space-y-2 mb-4 max-h-48 overflow-y-auto custom-scrollbar">
+                <!-- Populated via JS -->
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <input id="input-keyword" type="text" placeholder="Add urgency phrase" class="w-full bg-brand-card border border-brand-border px-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-brand-green">
+              <button onclick="addRule('keywords')" class="px-3 py-1.5 bg-brand-green text-xs font-bold text-white rounded-lg hover:bg-emerald-600">Add</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: TOOL TELEMETRY LOGS -->
+    <div id="view-logs" class="hidden space-y-6">
+      <div class="bg-brand-card border border-brand-border rounded-2xl p-6 shadow-xl">
+        <div class="flex justify-between items-center border-b border-brand-border pb-4 mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-white">AssemblyAI JSON-Schema Tool Payload Telemetry</h3>
+            <p class="text-xs text-gray-400 mt-0.5">Real-time inspection of backend execution parameters and risk score outputs.</p>
+          </div>
+          <button onclick="clearTelemetryLogs()" class="px-3 py-1.5 bg-brand-cardLight border border-brand-border text-xs text-gray-300 hover:text-white rounded-lg">
+            Clear Logs
+          </button>
+        </div>
+
+        <div id="telemetryFeed" class="bg-black/80 border border-brand-border rounded-xl p-4 font-mono text-xs space-y-3 min-h-[300px] max-h-[450px] overflow-y-auto custom-scrollbar">
+          <div class="text-gray-500 italic">[TELEMETRY] Awaiting live tool call execution events...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-brand-border bg-black/60 py-6 px-4 lg:px-8 mt-8">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-white">VoxShield AI</span>
+        <span>• Lablab.ai Hackathon Submission</span>
+      </div>
+      <div>
+        Built with AssemblyAI Voice Agent API (Universal-3 Pro) & Python FastAPI
+      </div>
+      <div class="font-mono text-[11px]">
+        © 2026 VoxShield AI
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic JavaScript -->
+  <script>
+    // --- Application State ---
+    let activeTab = 'inspector';
+    let isConnected = false;
+    let audioOutputEnabled = true;
+    let audioContext, analyser, canvas, canvasCtx, animId;
+    let callStartTime = null;
+    let callTimerInterval = null;
+
+    // Rules DB
+    let scamRules = {
+      accounts: ["9988776655", "123456789", "000999888"],
+      names: ["IRS Support", "Urgent Legal Services", "Tech Support Helpdesk"],
+      keywords: ["gift card", "crypto deposit", "wire immediately", "bail money", "overdue tax fine"]
+    };
+
+    // Preset Audio Test Scenarios
+    const scenarios = {
+      irs: {
+        text: "Hello, this is officer Roberts from IRS Support. You have an overdue tax fine of $6,000. Send funds immediately to routing account 9988776655 or legal action will commence.",
+        recipient: "IRS Support",
+        amount: 6000,
+        account: "9988776655",
+        urgency: "overdue tax fine"
+      },
+      grandparent: {
+        text: "Grandma please help! I was arrested abroad and need $4,500 in bail money wired immediately to Urgent Legal Services account 123456789.",
+        recipient: "Urgent Legal Services",
+        amount: 4500,
+        account: "123456789",
+        urgency: "bail money"
+      },
+      crypto: {
+        text: "Your account is compromised! Deposit $2,000 into our wallet via crypto deposit at 000999888 to protect your assets.",
+        recipient: "Tech Support Helpdesk",
+        amount: 2000,
+        account: "000999888",
+        urgency: "crypto deposit"
+      },
+      rent: {
+        text: "Hey Sarah, sending over $1,200 for my portion of this month's apartment rent payment. Thanks!",
+        recipient: "Sarah Jenkins",
+        amount: 1200,
+        account: "Standard ACH",
+        urgency: "None (Rent Payment)"
+      }
+    };
+
+    // --- Tab Switching ---
+    function switchTab(tabName) {
+      activeTab = tabName;
+      ['inspector', 'rules', 'logs'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const view = document.getElementById(`view-${t}`);
+        if (t === tabName) {
+          btn.className = "px-4 py-1.5 rounded-lg text-white bg-brand-red font-semibold transition-all shadow-sm";
+          view.classList.remove('hidden');
+        } else {
+          btn.className = "px-4 py-1.5 rounded-lg text-gray-400 hover:text-white transition-all";
+          view.classList.add('hidden');
+        }
+      });
+    }
+
+    // --- Audio Spectrum Canvas Waveform ---
+    function initWaveformCanvas() {
+      canvas = document.getElementById('waveformCanvas');
+      canvasCtx = canvas.getContext('2d');
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      drawIdleWaveform();
+    }
+
+    function resizeCanvas() {
+      if (canvas && canvas.parentElement) {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+      }
+    }
+
+    function drawIdleWaveform() {
+      if (!canvasCtx) return;
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(0, canvas.height / 2);
+      for (let x = 0; x < canvas.width; x += 10) {
+        const y = (canvas.height / 2) + Math.sin(x * 0.02) * 2;
+        canvasCtx.lineTo(x, y);
+      }
+      canvasCtx.strokeStyle = '#272a36';
+      canvasCtx.lineWidth = 2;
+      canvasCtx.stroke();
+    }
+
+    function animateActiveWaveform() {
+      if (!isConnected) {
+        drawIdleWaveform();
+        return;
+      }
+
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      const time = Date.now() * 0.005;
+
+      // Render dual wave lines
+      for (let j = 0; j < 2; j++) {
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(0, canvas.height / 2);
+
+        for (let x = 0; x < canvas.width; x += 5) {
+          const freq = j === 0 ? 0.03 : 0.015;
+          const amp = j === 0 ? 25 : 15;
+          const y = (canvas.height / 2) + Math.sin(x * freq + time) * Math.cos(x * 0.01 + time) * amp;
+          canvasCtx.lineTo(x, y);
+        }
+
+        canvasCtx.strokeStyle = j === 0 ? '#ef4444' : '#10b981';
+        canvasCtx.lineWidth = j === 0 ? 2.5 : 1.5;
+        canvasCtx.stroke();
+      }
+
+      animId = requestAnimationFrame(animateActiveWaveform);
+    }
+
+    // --- Audio Output Speech Synthesis ---
+    function speakWarning(text) {
+      if (!audioOutputEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleAudioOutput() {
+      audioOutputEnabled = !audioOutputEnabled;
+      const text = document.getElementById('audioToggleText');
+      const icon = document.getElementById('audioIconOn');
+      if (audioOutputEnabled) {
+        text.innerText = "Audio Output: ON";
+        icon.className = "w-4 h-4 text-brand-green";
+      } else {
+        text.innerText = "Audio Output: OFF";
+        icon.className = "w-4 h-4 text-gray-500";
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    // --- Supervision Call Session Management ---
+    function toggleSupervisionCall() {
+      if (!isConnected) {
+        startSupervision();
+      } else {
+        stopSupervision();
+      }
+    }
+
+    function startSupervision() {
+      isConnected = true;
+      document.getElementById('micBtnText').innerText = "Stop Supervision Call";
+      document.getElementById('mainMicBtn').className = "w-full sm:w-auto flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2";
+      document.getElementById('waveformOverlayText').classList.add('hidden');
+      document.getElementById('statusDot').className = "w-3.5 h-3.5 rounded-full bg-brand-red pulse-danger";
+      
+      callStartTime = Date.now();
+      callTimerInterval = setInterval(updateTimer, 1000);
+      
+      animateActiveWaveform();
+      addTranscriptMessage("[SYSTEM]", "Supervision session active. AssemblyAI Universal-3 Pro connected.");
+      logTelemetry("SESSION_START", { agent: "VoxShield", mode: "universal-3-pro", status: "LISTENING" });
+    }
+
+    function stopSupervision() {
+      isConnected = false;
+      document.getElementById('micBtnText').innerText = "Start Supervision Call";
+      document.getElementById('mainMicBtn').className = "w-full sm:w-auto flex-1 py-3 bg-brand-red hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-950/40 flex items-center justify-center gap-2";
+      document.getElementById('waveformOverlayText').classList.remove('hidden');
+      document.getElementById('statusDot').className = "w-3.5 h-3.5 rounded-full bg-brand-green pulse-green";
+      document.getElementById('typingIndicator').classList.add('hidden');
+      
+      clearInterval(callTimerInterval);
+      document.getElementById('callTimer').innerText = "00:00:00";
+      
+      cancelAnimationFrame(animId);
+      drawIdleWaveform();
+      
+      addTranscriptMessage("[SYSTEM]", "Session closed by user.");
+      hideAlertBanner();
+      logTelemetry("SESSION_STOP", { status: "TERMINATED" });
+    }
+
+    function updateTimer() {
+      if (!callStartTime) return;
+      const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+      const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('callTimer').innerText = `${hrs}:${mins}:${secs}`;
+    }
+
+    // --- Scenario Stream Injector ---
+    function loadScenario(type) {
+      if (!isConnected) startSupervision();
+      
+      const sc = scenarios[type];
+      if (!sc) return;
+
+      document.getElementById('typingIndicator').classList.remove('hidden');
+      
+      // Simulate real-time streaming speech typewriter effect
+      let currentIdx = 0;
+      const fullText = sc.text;
+      const messageElem = createTranscriptBubble();
+
+      const typeInterval = setInterval(() => {
+        currentIdx += 3;
+        messageElem.innerText = fullText.slice(0, currentIdx);
+        
+        if (currentIdx >= fullText.length) {
+          clearInterval(typeInterval);
+          document.getElementById('typingIndicator').classList.add('hidden');
+          
+          // Trigger Tool Calling Risk Assessment after transcription completes
+          evaluateTransactionRisk(sc);
+        }
+      }, 40);
+    }
+
+    function createTranscriptBubble() {
+      const container = document.getElementById('transcriptBox');
+      const div = document.createElement('div');
+      div.className = "text-gray-200 bg-brand-cardLight/80 p-2.5 rounded-lg border border-brand-border/60";
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    function addTranscriptMessage(sender, text) {
+      const container = document.getElementById('transcriptBox');
+      const div = document.createElement('div');
+      div.className = sender === "[SYSTEM]" ? "text-brand-red font-semibold text-xs" : "text-gray-200 bg-brand-cardLight p-2.5 rounded-lg border border-brand-border/60";
+      div.innerText = `${sender} ${text}`;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // --- Real-time Risk Assessment Engine ---
+    function evaluateTransactionRisk(sc) {
+      // Update Extracted Entities Panel
+      document.getElementById('entityRecipient').innerText = sc.recipient;
+      document.getElementById('entityAmount').innerText = `$${sc.amount.toLocaleString()}`;
+      document.getElementById('entityAccount').innerText = sc.account;
+      document.getElementById('entityUrgency').innerText = sc.urgency;
+
+      document.getElementById('statRecipient').innerText = sc.recipient;
+      document.getElementById('statAmount').innerText = `$${sc.amount.toLocaleString()}`;
+
+      // Perform Scam Database Verification
+      const isAccountFlagged = scamRules.accounts.some(acc => sc.account.includes(acc));
+      const isNameFlagged = scamRules.names.some(name => sc.recipient.toLowerCase().includes(name.toLowerCase()));
+      const isKeywordFlagged = scamRules.keywords.some(kw => sc.urgency.toLowerCase().includes(kw.toLowerCase()));
+
+      const isPhishing = isAccountFlagged || isNameFlagged || isKeywordFlagged || sc.amount > 5000;
+
+      // Update Gauge Meter & Telemetry
+      const scoreRing = document.getElementById('scoreRingCircle');
+      const scoreVal = document.getElementById('scoreValue');
+      const badge = document.getElementById('threatLevelBadge');
+      const reason = document.getElementById('scoreReasonText');
+      const statTool = document.getElementById('statToolAction');
+
+      if (isPhishing) {
+        // High Risk Verdict
+        scoreVal.innerText = "95%";
+        scoreVal.className = "text-3xl font-black text-brand-red";
+        scoreRing.setAttribute('stroke-dashoffset', '18'); // High fill
+        scoreRing.className = "text-brand-red transition-all duration-700";
+        
+        badge.innerText = "CRITICAL PHISHING";
+        badge.className = "text-xs font-mono px-2.5 py-0.5 rounded-full bg-red-950 text-brand-red border border-red-800 animate-pulse";
+        
+        reason.innerText = `Flagged recipient '${sc.recipient}' or account parameters matched known scam registries.`;
+        statTool.innerText = "INTERCEPTED";
+        statTool.className = "text-xs font-bold text-brand-red block";
+
+        showAlertBanner(`SCAM WARNING: ${sc.recipient} matches flagged fraud registries! Transaction paused.`);
+        speakWarning(`Warning! Intercepted potential phishing transfer to ${sc.recipient}. Do not authorize payment.`);
+        
+        logTelemetry("TOOL_CALL_EXECUTED", {
+          tool: "verify_transaction_safety",
+          arguments: sc,
+          verdict: "ALERT_HIGH_RISK",
+          risk_score: 0.95
+        });
+
+      } else {
+        // Safe Verdict
+        scoreVal.innerText = "5%";
+        scoreVal.className = "text-3xl font-black text-brand-green";
+        scoreRing.setAttribute('stroke-dashoffset', '345'); // Low fill
+        scoreRing.className = "text-brand-green transition-all duration-700";
+        
+        badge.innerText = "SAFE";
+        badge.className = "text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-950 text-brand-green border border-emerald-800";
+        
+        reason.innerText = "No scam keywords or flagged entity matches detected.";
+        statTool.innerText = "PASSED";
+        statTool.className = "text-xs font-bold text-brand-green block";
+
+        hideAlertBanner();
+        logTelemetry("TOOL_CALL_EXECUTED", {
+          tool: "verify_transaction_safety",
+          arguments: sc,
+          verdict: "SAFE",
+          risk_score: 0.05
+        });
+      }
+    }
+
+    // --- Alert Banner Controls ---
+    function showAlertBanner(msg) {
+      const banner = document.getElementById('securityAlertBanner');
+      document.getElementById('alertBannerText').innerText = msg;
+      banner.classList.remove('hidden');
+    }
+
+    function hideAlertBanner() {
+      document.getElementById('securityAlertBanner').classList.add('hidden');
+    }
+
+    function overrideAlert() {
+      hideAlertBanner();
+      window.speechSynthesis.cancel();
+      addTranscriptMessage("[SYSTEM]", "User manually overridden security alert.");
+    }
+
+    function blockTransaction() {
+      hideAlertBanner();
+      window.speechSynthesis.cancel();
+      addTranscriptMessage("[SYSTEM]", "TRANSACTION BLOCKED: Recipient account blacklisted successfully.");
+    }
+
+    // --- Telemetry Logging Engine ---
+    function logTelemetry(eventType, payload) {
+      const feed = document.getElementById('telemetryFeed');
+      const div = document.createElement('div');
+      div.className = "p-3 bg-black/60 border border-brand-border rounded-lg space-y-1 font-mono text-[11px]";
+      
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `
+        <div class="flex justify-between text-gray-400 border-b border-brand-border/40 pb-1">
+          <span class="text-brand-red font-bold">[${eventType}]</span>
+          <span>${time}</span>
+        </div>
+        <pre class="text-gray-300 mt-1 overflow-x-auto">${JSON.stringify(payload, null, 2)}</pre>
+      `;
+      
+      feed.prepend(div);
+    }
+
+    function clearTelemetryLogs() {
+      document.getElementById('telemetryFeed').innerHTML = '<div class="text-gray-500 italic">[TELEMETRY] Logs cleared.</div>';
+    }
+
+    function clearSessionLogs() {
+      document.getElementById('transcriptBox').innerHTML = '<span class="text-gray-600 italic">Transcribed speech audio will stream here live as spoken...</span>';
+      document.getElementById('entityRecipient').innerText = "None Detected";
+      document.getElementById('entityAmount').innerText = "$0.00";
+      document.getElementById('entityAccount').innerText = "Unspecified";
+      document.getElementById('entityUrgency').innerText = "None";
+      hideAlertBanner();
+    }
+
+    // --- Scam Rules Editor Engine ---
+    function renderRules() {
+      ['accounts', 'names', 'keywords'].forEach(cat => {
+        const container = document.getElementById(`ruleList-${cat}`);
+        const count = document.getElementById(`count-${cat}`);
+        container.innerHTML = '';
+        
+        scamRules[cat].forEach((item, idx) => {
+          const div = document.createElement('div');
+          div.className = "flex justify-between items-center bg-brand-card p-2 rounded-lg border border-brand-border text-xs text-gray-300";
+          div.innerHTML = `
+            <span class="truncate">${item}</span>
+            <button onclick="removeRule('${cat}', ${idx})" class="text-gray-500 hover:text-brand-red font-bold px-1.5">✕</button>
+          `;
+          container.appendChild(div);
+        });
+        count.innerText = `${scamRules[cat].length} entries`;
+      });
+    }
+
+    function addRule(category) {
+      const inputMap = { accounts: 'input-account', names: 'input-name', keywords: 'input-keyword' };
+      const input = document.getElementById(inputMap[category]);
+      const val = input.value.trim();
+      if (val) {
+        scamRules[category].push(val);
+        input.value = '';
+        renderRules();
+      }
+    }
+
+    function removeRule(category, idx) {
+      scamRules[category].splice(idx, 1);
+      renderRules();
+    }
+
+    function resetDefaultRules() {
+      scamRules = {
+        accounts: ["9988776655", "123456789", "000999888"],
+        names: ["IRS Support", "Urgent Legal Services", "Tech Support Helpdesk"],
+        keywords: ["gift card", "crypto deposit", "wire immediately", "bail money", "overdue tax fine"]
+      };
+      renderRules();
+    }
+
+    // --- On Load Initialization ---
+    window.onload = function() {
+      initWaveformCanvas();
+      renderRules();
+    };
+  </script>
+</body>
+</html>
